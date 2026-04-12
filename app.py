@@ -9,6 +9,7 @@ st.set_page_config(page_title="Global Market Dashboard", layout="wide")
 
 st.title("🌍 Global Market Dashboard")
 
+# -------- SYMBOL MAP --------
 symbols = {
     "NIFTY 50": "^NSEI",
     "SENSEX": "^BSESN",
@@ -30,6 +31,7 @@ interval_map = {
     "1Y": "1d"
 }
 
+# -------- DATA FETCH --------
 @st.cache_data
 def get_data(ticker, start, end, interval):
     try:
@@ -48,6 +50,7 @@ def get_data(ticker, start, end, interval):
     except:
         return None
 
+# -------- DATE HELPER --------
 def get_quick_range(option):
     end = datetime.date.today()
     if option == "1M":
@@ -64,7 +67,7 @@ def get_quick_range(option):
         start = end - datetime.timedelta(days=365*5)
     return start, end
 
-# 🔥 FINAL CHART FUNCTION
+# -------- IMPROVED MOBILE CHART --------
 def plot_chart(data, title):
     if data is None or data.empty:
         return None
@@ -89,19 +92,20 @@ def plot_chart(data, title):
             x=data.index,
             y=data["Close"],
             mode="lines",
-            name=title
+            name=title,
+            hovertemplate="Price: %{y:.2f}<br>Date: %{x}<extra></extra>"
         )
     )
 
     fig.update_layout(
         height=300,
         margin=dict(l=10, r=10, t=30, b=10),
-        hovermode="x unified",   # crosshair
-        dragmode=False,          # ❌ disable main drag
+        hovermode="closest",   # better for mobile
+        dragmode=False,        # disable drag/pan
         xaxis=dict(
             showgrid=False,
-            fixedrange=True,     # ❌ disable zoom/pan
-            rangeslider=dict(visible=True)  # ✅ keep slider
+            fixedrange=True,
+            rangeslider=dict(visible=True)  # keep slider
         ),
         yaxis=dict(
             showgrid=False,
@@ -173,7 +177,8 @@ for i in range(0, len(selected_assets), 2):
                         use_container_width=True,
                         config={
                             "scrollZoom": False,
-                            "displayModeBar": False
+                            "displayModeBar": False,
+                            "doubleClick": False
                         }
                     )
                 else:
@@ -255,4 +260,4 @@ if len(selected_corr_assets) >= 2:
 else:
     st.info("Select at least 2 assets")
 
-st.info("Mobile-friendly charts | Crosshair + slider both enabled")
+st.info("Mobile optimized | Tap to inspect values | Slider for navigation")
