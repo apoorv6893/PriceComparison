@@ -9,6 +9,7 @@ st.set_page_config(page_title="Global Market Dashboard", layout="wide")
 
 st.title("🌍 Global Market Dashboard")
 
+# -------- SYMBOL MAP --------
 symbols = {
     "NIFTY 50": "^NSEI",
     "SENSEX": "^BSESN",
@@ -30,6 +31,7 @@ interval_map = {
     "1Y": "1d"
 }
 
+# -------- DATA FETCH --------
 @st.cache_data
 def get_data(ticker, start, end, interval):
     try:
@@ -48,6 +50,7 @@ def get_data(ticker, start, end, interval):
     except:
         return None
 
+# -------- DATE HELPER --------
 def get_quick_range(option):
     end = datetime.date.today()
     if option == "1M":
@@ -64,14 +67,14 @@ def get_quick_range(option):
         start = end - datetime.timedelta(days=365*5)
     return start, end
 
-# 🔥 FIXED CHART FUNCTION
+# -------- MOBILE-OPTIMIZED CHART --------
 def plot_chart(data, title):
     if data is None or data.empty:
         return None
 
     data = data.copy()
 
-    # Handle multi-index
+    # Handle multi-index columns
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
 
@@ -83,14 +86,11 @@ def plot_chart(data, title):
     if data.empty:
         return None
 
-    # 🔥 CRITICAL FIX: use index directly
-    x_values = data.index
-
     fig = go.Figure()
 
     fig.add_trace(
         go.Scatter(
-            x=x_values,
+            x=data.index,
             y=data["Close"],
             mode="lines",
             name=title
@@ -100,12 +100,16 @@ def plot_chart(data, title):
     fig.update_layout(
         height=300,
         margin=dict(l=10, r=10, t=30, b=10),
-        hovermode="x unified",
+        hovermode="x unified",   # crosshair behavior
+        dragmode=False,          # disable drag
         xaxis=dict(
             showgrid=False,
-            rangeslider=dict(visible=True)
+            fixedrange=True      # disable zoom/pan
         ),
-        yaxis=dict(showgrid=False)
+        yaxis=dict(
+            showgrid=False,
+            fixedrange=True
+        )
     )
 
     return fig
@@ -254,4 +258,4 @@ if len(selected_corr_assets) >= 2:
 else:
     st.info("Select at least 2 assets")
 
-st.info("Stable charts | Intraday + daily supported")
+st.info("Mobile-optimized charts | No zoom issues | Smooth crosshair interaction")
