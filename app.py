@@ -43,25 +43,48 @@ def get_data(ticker, start, end, interval):
     except:
         return None
 
+# -------- QUICK DATE FUNCTION --------
+def get_quick_range(option):
+    end = datetime.date.today()
+    if option == "1M":
+        start = end - datetime.timedelta(days=30)
+    elif option == "2M":
+        start = end - datetime.timedelta(days=60)
+    elif option == "6M":
+        start = end - datetime.timedelta(days=180)
+    elif option == "1Y":
+        start = end - datetime.timedelta(days=365)
+    elif option == "3Y":
+        start = end - datetime.timedelta(days=365*3)
+    elif option == "5Y":
+        start = end - datetime.timedelta(days=365*5)
+    return start, end
+
 # =========================
 # 📈 SECTION 1: MARKET
 # =========================
 
 st.header("📈 Market Trends")
 
-# -------- Duration Slider --------
-duration_months = st.slider(
-    "Select Duration (Months)",
-    min_value=1,
-    max_value=60,
-    value=6,
-    step=1
+# -------- QUICK SELECT --------
+quick_option = st.radio(
+    "Quick Select Duration",
+    ["1M", "2M", "6M", "1Y", "3Y", "5Y"],
+    horizontal=True
 )
 
-end_date = datetime.date.today()
-start_date = end_date - datetime.timedelta(days=duration_months * 30)
+start_date, end_date = get_quick_range(quick_option)
 
-# -------- Select All --------
+# -------- MANUAL DATE --------
+col1, col2 = st.columns(2)
+
+with col1:
+    start_date = st.date_input("Start Date", start_date)
+
+with col2:
+    end_date = st.date_input("End Date", end_date)
+
+# -------- SELECT ALL --------
 select_all = st.checkbox("Select All Indices")
 
 if select_all:
@@ -73,7 +96,7 @@ else:
         default=["NIFTY 50", "S&P 500", "NASDAQ"]
     )
 
-# -------- GRID (2 per row) --------
+# -------- GRID --------
 for i in range(0, len(selected_assets), 2):
     cols = st.columns(2)
 
@@ -106,20 +129,26 @@ for i in range(0, len(selected_assets), 2):
 
 st.header("🔗 Correlation Analyzer")
 
-# -------- Duration Slider (separate) --------
-duration_months_corr = st.slider(
-    "Select Duration for Correlation (Months)",
-    min_value=1,
-    max_value=60,
-    value=6,
-    step=1,
-    key="corr_slider"
+# -------- QUICK SELECT --------
+quick_option_corr = st.radio(
+    "Quick Select Duration (Correlation)",
+    ["1M", "2M", "6M", "1Y", "3Y", "5Y"],
+    horizontal=True,
+    key="corr_quick"
 )
 
-end_date_corr = datetime.date.today()
-start_date_corr = end_date_corr - datetime.timedelta(days=duration_months_corr * 30)
+start_date_corr, end_date_corr = get_quick_range(quick_option_corr)
 
-# -------- Select All --------
+# -------- MANUAL DATE --------
+col3, col4 = st.columns(2)
+
+with col3:
+    start_date_corr = st.date_input("Start Date (Correlation)", start_date_corr)
+
+with col4:
+    end_date_corr = st.date_input("End Date (Correlation)", end_date_corr)
+
+# -------- SELECT ALL --------
 select_all_corr = st.checkbox("Select All (Correlation)")
 
 if select_all_corr:
@@ -131,12 +160,12 @@ else:
         default=["NIFTY 50", "S&P 500", "GOLD"]
     )
 
-# -------- Limit for UX --------
+# -------- LIMIT --------
 if len(selected_corr_assets) > 8:
     st.warning("Too many assets selected. Showing first 8.")
     selected_corr_assets = selected_corr_assets[:8]
 
-# -------- Correlation Logic --------
+# -------- CORRELATION --------
 if len(selected_corr_assets) >= 2:
 
     df = pd.DataFrame()
@@ -176,4 +205,4 @@ else:
     st.info("Select at least 2 assets")
 
 # -------- INFO --------
-st.info("Global markets | Select All | Duration slider | Interactive heatmap")
+st.info("Global markets | Quick duration selection | Interactive heatmap")
