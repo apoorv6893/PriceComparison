@@ -9,7 +9,6 @@ st.set_page_config(page_title="Global Market Dashboard", layout="wide")
 
 st.title("🌍 Global Market Dashboard")
 
-# -------- SYMBOL MAP --------
 symbols = {
     "NIFTY 50": "^NSEI",
     "SENSEX": "^BSESN",
@@ -31,7 +30,6 @@ interval_map = {
     "1Y": "1d"
 }
 
-# -------- DATA FETCH --------
 @st.cache_data
 def get_data(ticker, start, end, interval):
     try:
@@ -50,7 +48,6 @@ def get_data(ticker, start, end, interval):
     except:
         return None
 
-# -------- DATE HELPER --------
 def get_quick_range(option):
     end = datetime.date.today()
     if option == "1M":
@@ -67,14 +64,13 @@ def get_quick_range(option):
         start = end - datetime.timedelta(days=365*5)
     return start, end
 
-# -------- MOBILE-OPTIMIZED CHART --------
+# 🔥 FINAL CHART FUNCTION
 def plot_chart(data, title):
     if data is None or data.empty:
         return None
 
     data = data.copy()
 
-    # Handle multi-index columns
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
 
@@ -100,11 +96,12 @@ def plot_chart(data, title):
     fig.update_layout(
         height=300,
         margin=dict(l=10, r=10, t=30, b=10),
-        hovermode="x unified",   # crosshair behavior
-        dragmode=False,          # disable drag
+        hovermode="x unified",   # crosshair
+        dragmode=False,          # ❌ disable main drag
         xaxis=dict(
             showgrid=False,
-            fixedrange=True      # disable zoom/pan
+            fixedrange=True,     # ❌ disable zoom/pan
+            rangeslider=dict(visible=True)  # ✅ keep slider
         ),
         yaxis=dict(
             showgrid=False,
@@ -258,4 +255,4 @@ if len(selected_corr_assets) >= 2:
 else:
     st.info("Select at least 2 assets")
 
-st.info("Mobile-optimized charts | No zoom issues | Smooth crosshair interaction")
+st.info("Mobile-friendly charts | Crosshair + slider both enabled")
