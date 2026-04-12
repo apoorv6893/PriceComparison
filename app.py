@@ -31,6 +31,7 @@ interval_map = {
     "1Y": "1d"
 }
 
+# -------- DATA FETCH --------
 @st.cache_data
 def get_data(ticker, start, end, interval):
     try:
@@ -42,6 +43,7 @@ def get_data(ticker, start, end, interval):
     except:
         return None
 
+# -------- DATE HELPER --------
 def get_quick_range(option):
     end = datetime.date.today()
     if option == "1M":
@@ -58,13 +60,20 @@ def get_quick_range(option):
         start = end - datetime.timedelta(days=365*5)
     return start, end
 
-# 🔥 NEW: PLOTLY CHART FUNCTION
+# -------- FIXED PLOT FUNCTION --------
 def plot_chart(data, title):
+    if data is None or data.empty:
+        return None
+
+    data = data.copy()
+    data = data.reset_index()
+    data = data.dropna(subset=["Close"])
+
     fig = go.Figure()
 
     fig.add_trace(
         go.Scatter(
-            x=data.index,
+            x=data["Date"],
             y=data["Close"],
             mode="lines",
             name=title
@@ -74,10 +83,10 @@ def plot_chart(data, title):
     fig.update_layout(
         height=300,
         margin=dict(l=10, r=10, t=30, b=10),
-        hovermode="x unified",  # 🔥 crosshair behavior
+        hovermode="x unified",
         xaxis=dict(
             showgrid=False,
-            rangeslider=dict(visible=True)  # 🔥 horizontal slider
+            rangeslider=dict(visible=True)
         ),
         yaxis=dict(showgrid=False)
     )
@@ -138,15 +147,15 @@ for i in range(0, len(selected_assets), 2):
 
                 data = get_data(symbols[asset], start_date, end_date, interval)
 
-                if data is not None:
-                    fig = plot_chart(data, asset)
+                fig = plot_chart(data, asset)
 
+                if fig:
                     st.plotly_chart(
                         fig,
                         use_container_width=True,
                         config={
-                            "scrollZoom": False,  # ❌ disable zoom
-                            "displayModeBar": False  # clean UI
+                            "scrollZoom": False,
+                            "displayModeBar": False
                         }
                     )
                 else:
@@ -228,4 +237,4 @@ if len(selected_corr_assets) >= 2:
 else:
     st.info("Select at least 2 assets")
 
-st.info("Global markets | Smooth mobile charts | Crosshair enabled")
+st.info("Global markets | Smooth charts | Crosshair + slider enabled")
