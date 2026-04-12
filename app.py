@@ -49,22 +49,31 @@ def get_data(ticker, start, end, interval):
 
 st.header("📈 Market Trends")
 
-# 🔹 Time controls (TOP SECTION)
-colA, colB = st.columns(2)
-
-with colA:
-    start_date_1 = st.date_input("Start Date (Trends)", datetime.date.today() - datetime.timedelta(days=30))
-
-with colB:
-    end_date_1 = st.date_input("End Date (Trends)", datetime.date.today())
-
-selected_assets = st.multiselect(
-    "Select Indices / Commodities",
-    list(symbols.keys()),
-    default=["NIFTY 50", "S&P 500", "NASDAQ"]
+# -------- Duration Slider --------
+duration_months = st.slider(
+    "Select Duration (Months)",
+    min_value=1,
+    max_value=60,
+    value=6,
+    step=1
 )
 
-# 🔹 GRID (2 per row)
+end_date = datetime.date.today()
+start_date = end_date - datetime.timedelta(days=duration_months * 30)
+
+# -------- Select All --------
+select_all = st.checkbox("Select All Indices")
+
+if select_all:
+    selected_assets = list(symbols.keys())
+else:
+    selected_assets = st.multiselect(
+        "Select Indices / Commodities",
+        list(symbols.keys()),
+        default=["NIFTY 50", "S&P 500", "NASDAQ"]
+    )
+
+# -------- GRID (2 per row) --------
 for i in range(0, len(selected_assets), 2):
     cols = st.columns(2)
 
@@ -84,7 +93,7 @@ for i in range(0, len(selected_assets), 2):
 
                 interval = interval_map[interval_label]
 
-                data = get_data(symbols[asset], start_date_1, end_date_1, interval)
+                data = get_data(symbols[asset], start_date, end_date, interval)
 
                 if data is not None:
                     st.line_chart(data["Close"])
@@ -97,27 +106,43 @@ for i in range(0, len(selected_assets), 2):
 
 st.header("🔗 Correlation Analyzer")
 
-# 🔹 Time controls (CORRELATION SECTION)
-colC, colD = st.columns(2)
-
-with colC:
-    start_date_2 = st.date_input("Start Date (Correlation)", datetime.date.today() - datetime.timedelta(days=30))
-
-with colD:
-    end_date_2 = st.date_input("End Date (Correlation)", datetime.date.today())
-
-selected_corr_assets = st.multiselect(
-    "Select Assets",
-    list(symbols.keys()),
-    default=["NIFTY 50", "S&P 500", "GOLD"]
+# -------- Duration Slider (separate) --------
+duration_months_corr = st.slider(
+    "Select Duration for Correlation (Months)",
+    min_value=1,
+    max_value=60,
+    value=6,
+    step=1,
+    key="corr_slider"
 )
 
+end_date_corr = datetime.date.today()
+start_date_corr = end_date_corr - datetime.timedelta(days=duration_months_corr * 30)
+
+# -------- Select All --------
+select_all_corr = st.checkbox("Select All (Correlation)")
+
+if select_all_corr:
+    selected_corr_assets = list(symbols.keys())
+else:
+    selected_corr_assets = st.multiselect(
+        "Select Assets",
+        list(symbols.keys()),
+        default=["NIFTY 50", "S&P 500", "GOLD"]
+    )
+
+# -------- Limit for UX --------
+if len(selected_corr_assets) > 8:
+    st.warning("Too many assets selected. Showing first 8.")
+    selected_corr_assets = selected_corr_assets[:8]
+
+# -------- Correlation Logic --------
 if len(selected_corr_assets) >= 2:
 
     df = pd.DataFrame()
 
     for asset in selected_corr_assets:
-        data = get_data(symbols[asset], start_date_2, end_date_2, "1d")
+        data = get_data(symbols[asset], start_date_corr, end_date_corr, "1d")
         if data is not None:
             df[asset] = data["Returns"]
 
@@ -151,4 +176,4 @@ else:
     st.info("Select at least 2 assets")
 
 # -------- INFO --------
-st.info("Global markets | Section-wise time control | Interactive heatmap")
+st.info("Global markets | Select All | Duration slider | Interactive heatmap")
