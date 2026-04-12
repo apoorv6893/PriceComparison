@@ -2,6 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import datetime
+import plotly.express as px
 
 st.set_page_config(page_title="Global Market Dashboard", layout="wide")
 
@@ -22,13 +23,7 @@ symbols = {
     "CRUDE OIL": "CL=F"
 }
 
-# -------- GLOBAL DATE FILTER --------
-st.sidebar.header("📅 Time Range")
-
-start_date = st.sidebar.date_input("Start Date", datetime.date.today() - datetime.timedelta(days=30))
-end_date = st.sidebar.date_input("End Date", datetime.date.today())
-
-# -------- INTERVAL OPTIONS --------
+# -------- INTERVAL MAP --------
 interval_map = {
     "4H": "1h",
     "1D": "1d",
@@ -48,8 +43,20 @@ def get_data(ticker, start, end, interval):
     except:
         return None
 
-# -------- SELECT ASSETS --------
+# =========================
+# 📈 SECTION 1: MARKET
+# =========================
+
 st.header("📈 Market Trends")
+
+# 🔹 Time controls (TOP SECTION)
+colA, colB = st.columns(2)
+
+with colA:
+    start_date_1 = st.date_input("Start Date (Trends)", datetime.date.today() - datetime.timedelta(days=30))
+
+with colB:
+    end_date_1 = st.date_input("End Date (Trends)", datetime.date.today())
 
 selected_assets = st.multiselect(
     "Select Indices / Commodities",
@@ -57,7 +64,7 @@ selected_assets = st.multiselect(
     default=["NIFTY 50", "S&P 500", "NASDAQ"]
 )
 
-# -------- GRID LAYOUT (2 per row) --------
+# 🔹 GRID (2 per row)
 for i in range(0, len(selected_assets), 2):
     cols = st.columns(2)
 
@@ -77,15 +84,27 @@ for i in range(0, len(selected_assets), 2):
 
                 interval = interval_map[interval_label]
 
-                data = get_data(symbols[asset], start_date, end_date, interval)
+                data = get_data(symbols[asset], start_date_1, end_date_1, interval)
 
                 if data is not None:
                     st.line_chart(data["Close"])
                 else:
                     st.warning("Data unavailable")
 
-# -------- CORRELATION --------
+# =========================
+# 🔗 SECTION 2: CORRELATION
+# =========================
+
 st.header("🔗 Correlation Analyzer")
+
+# 🔹 Time controls (CORRELATION SECTION)
+colC, colD = st.columns(2)
+
+with colC:
+    start_date_2 = st.date_input("Start Date (Correlation)", datetime.date.today() - datetime.timedelta(days=30))
+
+with colD:
+    end_date_2 = st.date_input("End Date (Correlation)", datetime.date.today())
 
 selected_corr_assets = st.multiselect(
     "Select Assets",
@@ -98,7 +117,7 @@ if len(selected_corr_assets) >= 2:
     df = pd.DataFrame()
 
     for asset in selected_corr_assets:
-        data = get_data(symbols[asset], start_date, end_date, "1d")
+        data = get_data(symbols[asset], start_date_2, end_date_2, "1d")
         if data is not None:
             df[asset] = data["Returns"]
 
@@ -111,7 +130,16 @@ if len(selected_corr_assets) >= 2:
         st.dataframe(corr)
 
         st.subheader("🔥 Correlation Heatmap")
-        st.write(corr.style.background_gradient(cmap="coolwarm"))
+
+        fig = px.imshow(
+            corr,
+            text_auto=True,
+            color_continuous_scale="RdBu",
+            zmin=-1,
+            zmax=1
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("📉 Returns Comparison")
         st.line_chart(df)
@@ -123,4 +151,4 @@ else:
     st.info("Select at least 2 assets")
 
 # -------- INFO --------
-st.info("Global markets | Custom time range | Multi-interval charts | Correlation heatmap")
+st.info("Global markets | Section-wise time control | Interactive heatmap")
