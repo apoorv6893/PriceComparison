@@ -9,7 +9,6 @@ st.set_page_config(page_title="Global Market Dashboard", layout="wide")
 
 st.title("🌍 Global Market Dashboard")
 
-# -------- SYMBOL MAP --------
 symbols = {
     "NIFTY 50": "^NSEI",
     "SENSEX": "^BSESN",
@@ -31,7 +30,6 @@ interval_map = {
     "1Y": "1d"
 }
 
-# -------- DATA FETCH --------
 @st.cache_data
 def get_data(ticker, start, end, interval):
     try:
@@ -50,7 +48,6 @@ def get_data(ticker, start, end, interval):
     except:
         return None
 
-# -------- DATE HELPER --------
 def get_quick_range(option):
     end = datetime.date.today()
     if option == "1M":
@@ -67,32 +64,33 @@ def get_quick_range(option):
         start = end - datetime.timedelta(days=365*5)
     return start, end
 
-# -------- FIXED PLOT FUNCTION --------
+# 🔥 FIXED CHART FUNCTION
 def plot_chart(data, title):
     if data is None or data.empty:
         return None
 
     data = data.copy()
 
-    # Handle multi-index columns
+    # Handle multi-index
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
 
-    # Ensure Close exists
     if "Close" not in data.columns:
         return None
 
-    data = data.reset_index()
     data = data.dropna(subset=["Close"])
 
     if data.empty:
         return None
 
+    # 🔥 CRITICAL FIX: use index directly
+    x_values = data.index
+
     fig = go.Figure()
 
     fig.add_trace(
         go.Scatter(
-            x=data["Date"],
+            x=x_values,
             y=data["Close"],
             mode="lines",
             name=title
@@ -256,4 +254,4 @@ if len(selected_corr_assets) >= 2:
 else:
     st.info("Select at least 2 assets")
 
-st.info("Global markets | Stable charts | Mobile-friendly interaction | No crashes")
+st.info("Stable charts | Intraday + daily supported")
