@@ -1,64 +1,75 @@
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
+import yfinance as yf
+import pandas as pd
 
-st.set_page_config(page_title="Price Comparison", layout="wide")
+st.set_page_config(page_title="Market Dashboard", layout="wide")
 
-st.title("🛒 Product Price Comparison")
-st.write("Compare prices across multiple sellers")
+st.title("📊 Market Dashboard: Weekly Trends & Correlation")
 
-product = st.text_input("Enter product name (e.g. iPhone 15)")
-
-headers = {
-    "User-Agent": "Mozilla/5.0"
+# -------- SYMBOL MAP --------
+symbols = {
+    "NIFTY 50": "^NSEI",
+    "SENSEX": "^BSESN",
+    "BANK NIFTY": "^NSEBANK",
+    "GOLD": "GC=F",
+    "CRUDE OIL": "CL=F"
 }
 
-# -------- GOOGLE SHOPPING SCRAPER (STABLE) --------
-def search_google_shopping(query):
-    url = f"https://www.google.com/search?q={query}&tbm=shop"
-    results = []
+# -------- FETCH DATA --------
+@st.cache_data
+def get_data(ticker):
+    data = yf.download(ticker, period="1mo", interval="1d")
+    data["Returns"] = data["Close"].pct_change()
+    return data
 
-    try:
-        r = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(r.text, "html.parser")
+# -------- SECTION 1: WEEKLY TREND --------
+st.header("📈 Week-on-Week Performance")
 
-        items = soup.select(".sh-dgr__grid-result")
+cols = st.columns(3)
 
-        for item in items[:4]:  # top 4 results
-            title = item.select_one(".tAxDx")
-            price = item.select_one(".a8Pemb")
-            seller = item.select_one(".aULzUe")
+for i, (name, ticker) in enumerate(symbols.items()):
+    data = get_data(ticker)
 
-            results.append({
-                "title": title.text if title else "No title",
-                "price": price.text if price else "No price",
-                "seller": seller.text if seller else "Unknown"
-            })
+    with cols[i % 3]:
+        st.subheader(name)
+        st.line_chart(data["Close"])
 
-        return results
+# -------- SECTION 2: SELECT FOR CORRELATION --------
+st.header("🔗 Correlation Analyzer")
 
-    except:
-        return []
+col1, col2 = st.columns(2)
 
-# -------- MAIN LOGIC --------
-if product:
-    st.divider()
-    st.subheader(f"Results for: {product}")
+with col1:
+    option1 = st.selectbox("Select First Asset", list(symbols.keys()))
 
-    with st.spinner("Fetching prices..."):
-        results = search_google_shopping(product)
+with col2:
+    option2 = st.selectbox("Select Second Asset", list(symbols.keys()), index=1)
 
-    if results:
-        cols = st.columns(len(results))
+# -------- CORRELATION CALC --------
+data1 = get_data(symbols[option1])
+data2 = get_data(symbols[option2])
 
-        for i, item in enumerate(results):
-            with cols[i]:
-                st.markdown(f"### 🏬 {item['seller']}")
-                st.write("**Product:**", item["title"])
-                st.write("**Price:**", item["price"])
+df = pd.DataFrame({
+    option1: data1["Returns"],
+    option2: data2["Returns"]
+}).dropna()
 
-    else:
-        st.error("Could not fetch results. Try a different product.")
+correlation = df.corr().iloc[0, 1]
 
-    st.divider()
-    st.info("Showing top sellers from Google Shopping (stable demo)")
+# -------- DISPLAY --------
+st.subheader("📊 Correlation Result")
+
+st.metric("Correlation", round(correlation, 3))
+
+st.line_chart(df)
+
+# -------- INTERPRETATION --------
+if correlation > 0.5:
+    st.success("Strong Positive Correlation 📈")
+elif correlation < -0.5:
+    st.error("Strong Negative Correlation 📉")
+else:
+    st.info("Weak / No Correlation")
+
+# -------- INFO --------
+st.info("Data source: Yahoo Finance (no API key required)")
