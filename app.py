@@ -2,6 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import datetime
+import plotly.graph_objects as go
 import plotly.express as px
 
 st.set_page_config(page_title="Global Market Dashboard", layout="wide")
@@ -23,7 +24,6 @@ symbols = {
     "CRUDE OIL": "CL=F"
 }
 
-# -------- INTERVAL MAP --------
 interval_map = {
     "4H": "1h",
     "1D": "1d",
@@ -31,7 +31,6 @@ interval_map = {
     "1Y": "1d"
 }
 
-# -------- DATA FETCH --------
 @st.cache_data
 def get_data(ticker, start, end, interval):
     try:
@@ -43,7 +42,6 @@ def get_data(ticker, start, end, interval):
     except:
         return None
 
-# -------- QUICK DATE FUNCTION --------
 def get_quick_range(option):
     end = datetime.date.today()
     if option == "1M":
@@ -60,13 +58,38 @@ def get_quick_range(option):
         start = end - datetime.timedelta(days=365*5)
     return start, end
 
+# 🔥 NEW: PLOTLY CHART FUNCTION
+def plot_chart(data, title):
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Scatter(
+            x=data.index,
+            y=data["Close"],
+            mode="lines",
+            name=title
+        )
+    )
+
+    fig.update_layout(
+        height=300,
+        margin=dict(l=10, r=10, t=30, b=10),
+        hovermode="x unified",  # 🔥 crosshair behavior
+        xaxis=dict(
+            showgrid=False,
+            rangeslider=dict(visible=True)  # 🔥 horizontal slider
+        ),
+        yaxis=dict(showgrid=False)
+    )
+
+    return fig
+
 # =========================
-# 📈 SECTION 1: MARKET
+# 📈 MARKET
 # =========================
 
 st.header("📈 Market Trends")
 
-# -------- QUICK SELECT --------
 quick_option = st.radio(
     "Quick Select Duration",
     ["1M", "2M", "6M", "1Y", "3Y", "5Y"],
@@ -75,7 +98,6 @@ quick_option = st.radio(
 
 start_date, end_date = get_quick_range(quick_option)
 
-# -------- MANUAL DATE --------
 col1, col2 = st.columns(2)
 
 with col1:
@@ -84,7 +106,6 @@ with col1:
 with col2:
     end_date = st.date_input("End Date", end_date)
 
-# -------- SELECT ALL --------
 select_all = st.checkbox("Select All Indices")
 
 if select_all:
@@ -96,7 +117,6 @@ else:
         default=["NIFTY 50", "S&P 500", "NASDAQ"]
     )
 
-# -------- GRID --------
 for i in range(0, len(selected_assets), 2):
     cols = st.columns(2)
 
@@ -119,17 +139,25 @@ for i in range(0, len(selected_assets), 2):
                 data = get_data(symbols[asset], start_date, end_date, interval)
 
                 if data is not None:
-                    st.line_chart(data["Close"])
+                    fig = plot_chart(data, asset)
+
+                    st.plotly_chart(
+                        fig,
+                        use_container_width=True,
+                        config={
+                            "scrollZoom": False,  # ❌ disable zoom
+                            "displayModeBar": False  # clean UI
+                        }
+                    )
                 else:
                     st.warning("Data unavailable")
 
 # =========================
-# 🔗 SECTION 2: CORRELATION
+# 🔗 CORRELATION
 # =========================
 
 st.header("🔗 Correlation Analyzer")
 
-# -------- QUICK SELECT --------
 quick_option_corr = st.radio(
     "Quick Select Duration (Correlation)",
     ["1M", "2M", "6M", "1Y", "3Y", "5Y"],
@@ -139,7 +167,6 @@ quick_option_corr = st.radio(
 
 start_date_corr, end_date_corr = get_quick_range(quick_option_corr)
 
-# -------- MANUAL DATE --------
 col3, col4 = st.columns(2)
 
 with col3:
@@ -148,7 +175,6 @@ with col3:
 with col4:
     end_date_corr = st.date_input("End Date (Correlation)", end_date_corr)
 
-# -------- SELECT ALL --------
 select_all_corr = st.checkbox("Select All (Correlation)")
 
 if select_all_corr:
@@ -160,12 +186,10 @@ else:
         default=["NIFTY 50", "S&P 500", "GOLD"]
     )
 
-# -------- LIMIT --------
 if len(selected_corr_assets) > 8:
     st.warning("Too many assets selected. Showing first 8.")
     selected_corr_assets = selected_corr_assets[:8]
 
-# -------- CORRELATION --------
 if len(selected_corr_assets) >= 2:
 
     df = pd.DataFrame()
@@ -204,5 +228,4 @@ if len(selected_corr_assets) >= 2:
 else:
     st.info("Select at least 2 assets")
 
-# -------- INFO --------
-st.info("Global markets | Quick duration selection | Interactive heatmap")
+st.info("Global markets | Smooth mobile charts | Crosshair enabled")
