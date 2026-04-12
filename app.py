@@ -35,7 +35,14 @@ interval_map = {
 @st.cache_data
 def get_data(ticker, start, end, interval):
     try:
-        data = yf.download(ticker, start=start, end=end, interval=interval, progress=False)
+        data = yf.download(
+            ticker,
+            start=start,
+            end=end,
+            interval=interval,
+            progress=False,
+            auto_adjust=True
+        )
         if data is None or data.empty:
             return None
         data["Returns"] = data["Close"].pct_change()
@@ -66,8 +73,20 @@ def plot_chart(data, title):
         return None
 
     data = data.copy()
+
+    # Handle multi-index columns
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
+
+    # Ensure Close exists
+    if "Close" not in data.columns:
+        return None
+
     data = data.reset_index()
     data = data.dropna(subset=["Close"])
+
+    if data.empty:
+        return None
 
     fig = go.Figure()
 
@@ -237,4 +256,4 @@ if len(selected_corr_assets) >= 2:
 else:
     st.info("Select at least 2 assets")
 
-st.info("Global markets | Smooth charts | Crosshair + slider enabled")
+st.info("Global markets | Stable charts | Mobile-friendly interaction | No crashes")
