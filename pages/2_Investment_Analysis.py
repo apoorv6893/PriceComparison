@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import datetime
+from scipy.signal import argrelextrema
 
 st.set_page_config(
     page_title="Investment Analysis",
@@ -11,11 +12,11 @@ st.set_page_config(
 )
 
 st.title("📊 Investment Analysis")
-st.caption("AI-powered investment stage analysis using the last 6 months of historical market behaviour.")
+st.caption("Investment Stage Analysis based on the last 6 months of market behaviour.")
 
-# ==========================================================
+# ============================================================
 # INDEX MAP
-# ==========================================================
+# ============================================================
 
 symbols = {
     "NIFTY 50": "^NSEI",
@@ -40,9 +41,9 @@ symbols = {
     "NIFTY PRIVATE BANK": "^NIFTYPVTBANK"
 }
 
-# ==========================================================
+# ============================================================
 # DATA
-# ==========================================================
+# ============================================================
 
 @st.cache_data(ttl=3600)
 def get_data(symbol):
@@ -67,397 +68,484 @@ def get_data(symbol):
     return df.dropna()
 
 
-# ==========================================================
+# ============================================================
 # CHART
-# ==========================================================
+# ============================================================
 
 def trend_chart(df):
 
     fig = go.Figure()
 
     fig.add_trace(
+
         go.Scatter(
+
             x=df.index,
+
             y=df["Close"],
+
             mode="lines",
+
             line=dict(width=2)
+
         )
+
     )
 
     fig.update_layout(
+
         height=320,
+
         margin=dict(l=10,r=10,t=20,b=10),
+
         dragmode=False,
+
         hovermode="x unified",
+
         showlegend=False,
+
         xaxis=dict(
+
             rangeslider=dict(visible=True),
+
             fixedrange=True
+
         ),
+
         yaxis=dict(
+
             fixedrange=True
+
         )
+
     )
 
     return fig
-    
-# ==========================================================
+
+
+# ============================================================
 # ANALYSIS ENGINE
-# ==========================================================
+# ============================================================
 
 def analyse(df):
 
     close = df["Close"].copy()
 
-    # ------------------------------------------------------
-    # BASIC METRICS
-    # ------------------------------------------------------
-
     current = float(close.iloc[-1])
-
-    ath = float(close.max())
 
     high52 = float(close.max())
 
     low52 = float(close.min())
 
-    below_ath = ((ath - current) / ath) * 100
+    ath = high52
 
-    position52 = (
-        (current - low52)
-        /
-        (high52 - low52)
-    ) * 100
+    below_ath = ((ath-current)/ath)*100
 
-    # ------------------------------------------------------
-    # MOVING AVERAGES
-    # ------------------------------------------------------
+    position52 = ((current-low52)/(high52-low52))*100
+    
+        # ======================================================
+    # TREND QUALITY
+    # ======================================================
 
     sma20 = close.rolling(20).mean()
 
     sma50 = close.rolling(50).mean()
 
-    sma100 = close.rolling(100).mean()
-
-    # ------------------------------------------------------
-    # TREND
-    # ------------------------------------------------------
-
     trend_score = 0
 
     if current > sma20.iloc[-1]:
-        trend_score += 1
+        trend_score += 25
 
     if current > sma50.iloc[-1]:
-        trend_score += 1
+        trend_score += 25
 
     if sma20.iloc[-1] > sma50.iloc[-1]:
-        trend_score += 1
+        trend_score += 25
 
-    if sma50.iloc[-1] > sma100.iloc[-1]:
-        trend_score += 1
+    if sma50.iloc[-1] > sma50.iloc[-10]:
+        trend_score += 25
 
-    if sma20.iloc[-1] > sma20.iloc[-20]:
-        trend_score += 1
-
-    trend_score = trend_score * 20
-
-    # ------------------------------------------------------
+    # ======================================================
     # MARKET STRUCTURE
-    # ------------------------------------------------------
+    # ======================================================
 
-    highs = []
+    maxima = argrelextrema(
+        close.values,
+        np.greater,
+        order=5
+    )[0]
 
-    lows = []
+    minima = argrelextrema(
+        close.values,
+        np.less,
+        order=5
+    )[0]
 
-    for i in range(20, len(close), 20):
+    swing_highs = close.iloc[maxima].tail(5).tolist()
 
-        chunk = close.iloc[i - 20:i]
+    swing_lows = close.iloc[minima].tail(5).tolist()
 
-        highs.append(chunk.max())
+    structure_score = 50
 
-        lows.append(chunk.min())
+    higher_highs = False
 
-    higher_highs = 0
+    higher_lows = False
 
-    higher_lows = 0
+    if len(swing_highs) >= 3:
 
-    for i in range(1, len(highs)):
+        higher_highs = (
 
-        if highs[i] > highs[i - 1]:
-            higher_highs += 1
+            swing_highs[-1] >
+            swing_highs[-2] >
+            swing_highs[-3]
 
-    for i in range(1, len(lows)):
+        )
 
-        if lows[i] > lows[i - 1]:
-            higher_lows += 1
+    if len(swing_lows) >= 3:
 
-    structure_score = (
-        higher_highs +
-        higher_lows
-    )
+        higher_lows = (
 
-    structure_score = min(
-        structure_score * 15,
-        100
-    )
+            swing_lows[-1] >
+            swing_lows[-2] >
+            swing_lows[-3]
 
-    # ------------------------------------------------------
+        )
+
+    if higher_highs:
+        structure_score += 25
+
+    if higher_lows:
+        structure_score += 25
+
+    structure_score = min(structure_score,100)
+
+    # ======================================================
     # MOMENTUM
-    # ------------------------------------------------------
-
-    periods = [21, 42, 63, 84, 105, 126]
+    # ======================================================
 
     monthly_returns = []
 
-    for p in periods:
+    for d in [21,42,63,84,105,126]:
 
-        if len(close) > p:
+        if len(close) > d:
 
             monthly_returns.append(
 
                 (
-                    current
-                    /
-                    float(close.iloc[-p])
-                    - 1
-                ) * 100
+                    current /
+                    float(close.iloc[-d])
+                    -1
+                )*100
 
             )
 
-    momentum_score = 0
+    acceleration = 0
+
+    consistency = 0
 
     if len(monthly_returns) >= 6:
 
-        for i in range(1, len(monthly_returns)):
+        for i in range(1,6):
 
-            if monthly_returns[i] > monthly_returns[i - 1]:
+            if monthly_returns[i] > monthly_returns[i-1]:
 
-                momentum_score += 20
+                acceleration += 1
 
-    # ------------------------------------------------------
-    # VOLATILITY
-    # ------------------------------------------------------
+        positive = sum(
+            r > 0
+            for r in monthly_returns
+        )
 
-    volatility = (
+        consistency = positive / 6
 
-        close.pct_change().std()
+    momentum_score = int(
 
-        * 100
+        (
+            (acceleration/5)*70
+
+        ) +
+
+        (
+
+            consistency*30
+
+        )
 
     )
 
-    stability_score = 100
-
-    if volatility > 1:
-
-        stability_score = 80
-
-    if volatility > 1.5:
-
-        stability_score = 60
-
-    if volatility > 2:
-
-        stability_score = 40
-
-    if volatility > 3:
-
-        stability_score = 20
-
-    # ------------------------------------------------------
+    # ======================================================
     # PULLBACK QUALITY
-    # ------------------------------------------------------
+    # ======================================================
 
     rolling_high = close.cummax()
 
     drawdown = (
 
-        rolling_high - close
+        (rolling_high-close)
 
-    ) / rolling_high
+        /
 
-    max_drawdown = drawdown.max() * 100
+        rolling_high
 
-    if max_drawdown < 8:
+    )*100
 
-        pullback_score = 100
+    max_drawdown = drawdown.max()
 
-    elif max_drawdown < 12:
+    pullback_score = 100
 
+    if max_drawdown > 8:
         pullback_score = 80
 
-    elif max_drawdown < 18:
-
+    if max_drawdown > 12:
         pullback_score = 60
 
-    elif max_drawdown < 25:
-
+    if max_drawdown > 18:
         pullback_score = 40
+
+    if max_drawdown > 25:
+        pullback_score = 20
+        
+            # ======================================================
+    # RECOVERY STRENGTH
+    # ======================================================
+
+    recovery_score = 50
+
+    recent_drawdown = drawdown.tail(60)
+
+    deepest = recent_drawdown.max()
+
+    if deepest < 5:
+
+        recovery_score = 100
+
+    elif deepest < 8:
+
+        recovery_score = 85
+
+    elif deepest < 12:
+
+        recovery_score = 70
+
+    elif deepest < 18:
+
+        recovery_score = 50
 
     else:
 
-        pullback_score = 20
+        recovery_score = 30
 
-    # ------------------------------------------------------
-    # RECOVERY
-    # ------------------------------------------------------
+    # ======================================================
+    # EXTENSION
+    # ======================================================
 
-    last_peak = rolling_high.iloc[-1]
+    extension = (
 
-    recovery_ratio = current / last_peak
+        (current - sma50.iloc[-1])
 
-    recovery_score = int(
+        /
 
-        recovery_ratio * 100
+        sma50.iloc[-1]
 
-    )
+    ) * 100
 
-    recovery_score = max(
+    extension_score = 100
 
-        min(recovery_score, 100),
+    if extension > 5:
 
-        0
+        extension_score = 85
 
-    )
+    if extension > 10:
 
-    # ------------------------------------------------------
-    # STAGE ENGINE
-    # ------------------------------------------------------
+        extension_score = 70
 
-    stage = "🔴 Weak Trend"
+    if extension > 15:
 
-    if (
+        extension_score = 50
 
-        trend_score >= 80
+    if extension > 20:
 
-        and structure_score >= 70
+        extension_score = 30
+
+    # ======================================================
+    # STABILITY
+    # ======================================================
+
+    volatility = (
+
+        close.pct_change()
+
+        .rolling(20)
+
+        .std()
+
+        .iloc[-1]
+
+    ) * 100
+
+    stability_score = 100
+
+    if volatility > 1:
+
+        stability_score = 85
+
+    if volatility > 1.5:
+
+        stability_score = 70
+
+    if volatility > 2:
+
+        stability_score = 50
+
+    if volatility > 3:
+
+        stability_score = 30
+
+    # ======================================================
+    # INVESTMENT STAGE ENGINE
+    # ======================================================
+
+    stage = "Weak Trend"
+
+    if trend_score < 50 or structure_score < 50:
+
+        stage = "Weak Trend"
+
+    elif (
+
+        trend_score >= 70
+
+        and structure_score >= 75
+
+        and momentum_score >= 70
+
+        and recovery_score >= 70
+
+        and extension_score >= 80
 
     ):
 
-        if (
+        stage = "Early Accumulation"
 
-            momentum_score >= 80
+    elif (
 
-            and below_ath > 12
+        trend_score >= 80
 
-            and recovery_score >= 90
+        and structure_score >= 80
 
-        ):
+        and momentum_score >= 75
 
-            stage = "🌱 Early Accumulation"
+        and recovery_score >= 70
 
-        elif (
+        and extension_score >= 50
 
-            momentum_score >= 60
+    ):
 
-            and recovery_score >= 85
+        stage = "Expansion"
 
-        ):
+    elif (
 
-            stage = "🚀 Expansion"
+        trend_score >= 70
 
-        elif (
+        and structure_score >= 70
 
-            momentum_score >= 40
+        and momentum_score >= 45
 
-        ):
+    ):
 
-            stage = "🟡 Mature Trend"
+        stage = "Mature Trend"
 
-        else:
+    else:
 
-            stage = "🔴 Exhaustion"
+        stage = "Exhaustion"
 
-    # ------------------------------------------------------
-    # CONFIDENCE
-    # ------------------------------------------------------
+    # ======================================================
+    # ANALYSIS CONFIDENCE
+    # ======================================================
 
-    evidence = [
+    supporting_signals = []
 
-        trend_score,
-
-        structure_score,
-
-        momentum_score,
-
-        stability_score,
-
-        pullback_score,
-
-        recovery_score
-
-    ]
+    supporting_signals.append(trend_score >= 70)
+    supporting_signals.append(structure_score >= 70)
+    supporting_signals.append(momentum_score >= 60)
+    supporting_signals.append(recovery_score >= 60)
+    supporting_signals.append(extension_score >= 60)
+    supporting_signals.append(stability_score >= 60)
+    supporting_signals.append(pullback_score >= 60)
 
     confidence = int(
 
-        np.mean(evidence)
+        (
+
+            sum(supporting_signals)
+
+            /
+
+            len(supporting_signals)
+
+        ) * 100
 
     )
 
-    # ------------------------------------------------------
-    # INSIGHTS
-    # ------------------------------------------------------
+    # ======================================================
+    # KEY INSIGHTS
+    # ======================================================
 
     insights = []
 
     if trend_score >= 80:
-
         insights.append(
-            "Trend remains firmly positive across short and medium-term moving averages."
+            "Trend remains healthy with price trading above key moving averages."
         )
 
-    if structure_score >= 70:
-
+    if higher_highs:
         insights.append(
-            "Higher highs and higher lows indicate healthy market structure."
+            "Higher highs indicate buyers continue to push prices upward."
         )
 
-    if momentum_score >= 80:
-
+    if higher_lows:
         insights.append(
-            "Momentum has accelerated consistently over recent months."
+            "Higher lows suggest accumulation on market declines."
         )
 
-    elif momentum_score >= 60:
-
+    if momentum_score >= 70:
         insights.append(
-            "Momentum remains positive and continues to support the trend."
+            "Momentum has strengthened consistently over the last six months."
+        )
+
+    elif momentum_score >= 50:
+        insights.append(
+            "Momentum remains positive but is no longer accelerating."
         )
 
     else:
-
         insights.append(
-            "Momentum is flattening and requires monitoring."
+            "Momentum has weakened and requires monitoring."
         )
 
     if pullback_score >= 80:
-
         insights.append(
-            "Recent pullbacks have remained shallow, indicating strong buying support."
+            "Recent corrections have remained shallow and well supported."
         )
 
-    if recovery_score >= 90:
-
+    if recovery_score >= 80:
         insights.append(
-            "The market has recovered quickly after corrections."
+            "The market has recovered quickly after recent pullbacks."
         )
 
-    if below_ath > 12:
+    if extension_score <= 50:
+        insights.append(
+            "Price is becoming extended above its long-term trend."
+        )
 
+    elif below_ath > 10:
         insights.append(
             f"The index is still {below_ath:.1f}% below its recent high, leaving room for further upside."
         )
-
-    else:
-
-        insights.append(
-            "The index is trading close to its recent high, suggesting a more mature phase."
-        )
-
-    # ------------------------------------------------------
+        
+            # ======================================================
     # RETURN
-    # ------------------------------------------------------
+    # ======================================================
 
     return {
 
@@ -479,11 +567,13 @@ def analyse(df):
 
         "momentum": momentum_score,
 
-        "stability": stability_score,
-
         "pullback": pullback_score,
 
         "recovery": recovery_score,
+
+        "extension": extension_score,
+
+        "stability": stability_score,
 
         "confidence": confidence,
 
@@ -494,8 +584,9 @@ def analyse(df):
         "insights": insights
 
     }
-    
-    # ==========================================================
+
+
+# ==========================================================
 # UI
 # ==========================================================
 
@@ -506,7 +597,7 @@ select_all = st.checkbox(
     value=False
 )
 
-default_indices = [
+default_selection = [
     "NIFTY 50",
     "NIFTY MIDCAP 100",
     "NIFTY SMALLCAP 100",
@@ -516,16 +607,21 @@ default_indices = [
 ]
 
 if select_all:
+
     selected_indices = list(symbols.keys())
+
 else:
+
     selected_indices = st.multiselect(
         "Select Indices",
         list(symbols.keys()),
-        default=default_indices
+        default=default_selection
     )
 
 if len(selected_indices) == 0:
+
     st.stop()
+
 
 # ==========================================================
 # MAIN LOOP
@@ -535,65 +631,93 @@ for index_name in selected_indices:
 
     st.markdown("---")
 
+    st.header(index_name)
+
     df = get_data(symbols[index_name])
 
     if df is None:
-        st.warning(f"Unable to load data for {index_name}")
+
+        st.warning("Unable to fetch data.")
+
         continue
 
     analysis = analyse(df)
 
-    st.header(index_name)
-
     # ------------------------------------------------------
-    # TOP METRICS
+    # SUMMARY
     # ------------------------------------------------------
 
-    m1, m2, m3 = st.columns(3)
+    c1, c2, c3 = st.columns(3)
 
     day_change = (
+
         (
             df["Close"].iloc[-1]
-            - df["Close"].iloc[-2]
+
+            -
+
+            df["Close"].iloc[-2]
+
         )
+
         /
+
         df["Close"].iloc[-2]
+
     ) * 100
 
-    with m1:
+    with c1:
 
         st.metric(
+
             "Current",
+
             f"{analysis['current']:,.2f}"
+
         )
 
         st.metric(
+
             "Today's Change",
+
             f"{day_change:.2f}%"
+
         )
 
-    with m2:
+    with c2:
 
         st.metric(
+
             "ATH",
+
             f"{analysis['ath']:,.2f}"
+
         )
 
         st.metric(
+
             "Below ATH",
+
             f"{analysis['below_ath']:.2f}%"
+
         )
 
-    with m3:
+    with c3:
 
         st.metric(
+
             "52W Low",
+
             f"{analysis['low52']:,.2f}"
+
         )
 
         st.metric(
+
             "52W Position",
+
             f"{analysis['position52']:.1f}%"
+
         )
 
     # ------------------------------------------------------
@@ -603,13 +727,21 @@ for index_name in selected_indices:
     st.subheader("📈 6 Month Trend")
 
     st.plotly_chart(
+
         trend_chart(df),
+
         use_container_width=True,
+
         config={
+
             "displayModeBar": False,
+
             "scrollZoom": False,
+
             "doubleClick": False
+
         }
+
     )
 
     # ------------------------------------------------------
@@ -618,31 +750,40 @@ for index_name in selected_indices:
 
     st.subheader("Investment Analysis")
 
-    c1, c2, c3 = st.columns(3)
+    a1, a2, a3 = st.columns(3)
 
-    with c1:
+    with a1:
 
         st.metric(
+
             "Investment Stage",
+
             analysis["stage"]
+
         )
 
-    with c2:
+    with a2:
 
         st.metric(
+
             "Momentum",
+
             f"{analysis['momentum']}/100"
+
         )
 
-    with c3:
+    with a3:
 
         st.metric(
+
             "Analysis Confidence",
+
             f"{analysis['confidence']}%"
+
         )
 
     # ------------------------------------------------------
-    # KEY INSIGHTS
+    # INSIGHTS
     # ------------------------------------------------------
 
     st.subheader("Key Insights")
@@ -652,91 +793,72 @@ for index_name in selected_indices:
         st.markdown(f"✅ {insight}")
 
     # ------------------------------------------------------
-    # ENGINE BREAKDOWN
+    # TECHNICAL BREAKDOWN
     # ------------------------------------------------------
 
-    with st.expander("Analysis Breakdown"):
+    with st.expander("Technical Breakdown"):
 
         score_df = pd.DataFrame({
 
             "Metric": [
-                "Trend",
+
+                "Trend Quality",
+
                 "Market Structure",
+
                 "Momentum",
-                "Stability",
+
                 "Pullback Quality",
-                "Recovery Strength"
+
+                "Recovery Strength",
+
+                "Extension",
+
+                "Stability"
+
             ],
 
             "Score": [
+
                 analysis["trend"],
+
                 analysis["structure"],
+
                 analysis["momentum"],
-                analysis["stability"],
+
                 analysis["pullback"],
-                analysis["recovery"]
+
+                analysis["recovery"],
+
+                analysis["extension"],
+
+                analysis["stability"]
+
             ]
 
         })
 
         st.dataframe(
+
             score_df,
+
             use_container_width=True,
+
             hide_index=True
+
         )
-
-        st.markdown("---")
-
-        s1, s2 = st.columns(2)
-
-        with s1:
-
-            st.write(
-                f"**Current:** {analysis['current']:,.2f}"
-            )
-
-            st.write(
-                f"**ATH:** {analysis['ath']:,.2f}"
-            )
-
-            st.write(
-                f"**52W High:** {analysis['high52']:,.2f}"
-            )
-
-            st.write(
-                f"**52W Low:** {analysis['low52']:,.2f}"
-            )
-
-        with s2:
-
-            st.write(
-                f"**Below ATH:** {analysis['below_ath']:.2f}%"
-            )
-
-            st.write(
-                f"**52W Position:** {analysis['position52']:.2f}%"
-            )
-
-            st.write(
-                f"**Volatility:** {analysis['volatility']:.2f}%"
-            )
-
-            st.write(
-                f"**Confidence:** {analysis['confidence']}%"
-            )
 
 st.markdown("---")
 
 st.info(
-    "The Investment Stage is derived from six months of historical price action using market structure, trend quality, momentum, pullback behaviour, recovery strength and stability. This analysis is intended as research support and not investment advice."
+
+    "Investment Stage is determined using seven independent signals: Trend Quality, "
+    "Market Structure, Momentum, Pullback Quality, Recovery Strength, Extension and Stability. "
+    "Analysis is based on the previous six months of historical market behaviour."
+
 )
-
-
-
-
-
-
-
+        
+        
     
     
     
